@@ -1,0 +1,30 @@
+{
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/health",
+      "status": 200,
+      "headers": { "Content-Type": "application/json" },
+      "body": "{\"ok\": true}"
+    },
+    {
+      "method": "GET",
+      "path": "/api/users*",
+      "headers": { "Content-Type": "application/json" },
+      "body": "[{\"id\": 1, \"name\": \"Ada\"}, {\"id\": 2, \"name\": \"Linus\"}]"
+    },
+    {
+      "method": "POST",
+      "path": "/api/users",
+      "status": 201,
+      "headers": { "Content-Type": "application/json" },
+      "body": "{\"id\": 3}"
+    },
+    {
+      "method": "*",
+      "path": "/slow",
+      "delay_ms": 800,
+      "body": "slow response"
+    }
+  ]
+}
