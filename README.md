@@ -41,7 +41,7 @@ $ curl -s "localhost:8080/api/users?page=2"
 $ curl -i -X POST localhost:8080/api/users
 HTTP/1.0 201 Created
 Content-Type: application/json
-Content-Length: 8
+Content-Length: 9
 
 {"id": 3}
 ```
