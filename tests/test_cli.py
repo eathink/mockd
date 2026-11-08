@@ -11,6 +11,7 @@ class CliTests(unittest.TestCase):
 
         self.assertEqual(args.host, "127.0.0.1")
         self.assertEqual(args.port, 8080)
+        self.assertEqual(args.max_requests, 50)
         self.assertFalse(args.quiet)
 
     def test_missing_config_returns_two(self):

@@ -79,7 +79,7 @@ Content-Length: 9
 
 - **按声明顺序匹配，第一条生效**——把更具体的路由放在前面
 - **查询串不参与匹配**：`/api/users?page=2` 命中 `/api/users`
-- **可选请求体匹配**：配置了 `body_contains` 的路由才会读取请求体，最多读 1 MiB；未配置的路由不读请求体
+- **请求体读取**：配置了 `body_contains` 或开启请求记录时才会读取请求体，最多读 1 MiB
 - 未匹配返回 `404` 和 JSON 错误体，包含请求方法与路径
 - 每条请求打印一行日志；`--quiet` 关闭
 - 自动设置 `Content-Length`，HEAD 请求只回头不返体
@@ -95,8 +95,36 @@ mockd CONFIG [--host 127.0.0.1] [--port 8080] [--quiet]
 | --- | --- |
 | `--host` | 监听地址，默认 `127.0.0.1` |
 | `--port` | 监听端口，默认 `8080`；`0` 表示随机端口并打印实际地址 |
+| `--max-requests N` | 保留最近 N 条请求供 `/__requests` 查看，默认 `50`；`0` 关闭记录 |
 | `--quiet` | 不打印每条请求 |
 | `--version` | 版本号 |
+
+## 调试：查看最近请求
+
+`GET /__requests` 返回最近 N 条请求（环形缓冲，默认 50 条）：
+
+```console
+$ curl -s localhost:8080/__requests
+{
+  "count": 1,
+  "max": 50,
+  "requests": [
+    {
+      "method": "GET",
+      "path": "/health?full=1",
+      "status": 200,
+      "body": "",
+      "body_truncated": false,
+      "timestamp": "2026-11-08T04:48:00.123Z"
+    }
+  ]
+}
+```
+
+- `path` 保留原始查询串，便于排查
+- 请求体每个条目最多保留 4 KiB，超出时 `body_truncated` 为 `true`
+- `/__requests` 是保留路径，优先于用户路由，且不记录自身
+- `--max-requests 0` 关闭记录，接口返回空列表
 
 ## 典型用法
 

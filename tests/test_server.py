@@ -1,3 +1,4 @@
+import json
 import threading
 import time
 import unittest
@@ -9,8 +10,8 @@ from mockd.server import MockServer
 
 
 class ServerTests(unittest.TestCase):
-    def start(self, routes):
-        server = MockServer(routes, port=0, quiet=True)
+    def start(self, routes, **kwargs):
+        server = MockServer(routes, port=0, quiet=True, **kwargs)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         self.addCleanup(self._shutdown, server, thread)
@@ -128,6 +129,59 @@ class ServerTests(unittest.TestCase):
         )
 
         self.assertEqual(status, 404)
+
+    def test_requests_endpoint_records(self):
+        server = self.start([Route("/a"), Route("/b", method="POST")])
+
+        self.request(server.base_url + "/a")
+        self.request(server.base_url + "/b", method="POST", data=b'{"x":1}')
+        status, headers, body = self.request(server.base_url + "/__requests")
+
+        payload = json.loads(body)
+        self.assertEqual(status, 200)
+        self.assertIn("application/json", headers["Content-Type"])
+        self.assertEqual(payload["count"], 2)
+        self.assertEqual(payload["requests"][0]["method"], "GET")
+        self.assertEqual(payload["requests"][0]["path"], "/a")
+        self.assertEqual(payload["requests"][1]["path"], "/b")
+        self.assertEqual(payload["requests"][1]["status"], 200)
+        self.assertEqual(payload["requests"][1]["body"], '{"x":1}')
+
+    def test_requests_endpoint_not_recorded(self):
+        server = self.start([Route("/a")])
+
+        self.request(server.base_url + "/__requests")
+        _, _, body = self.request(server.base_url + "/__requests")
+
+        self.assertEqual(json.loads(body)["count"], 0)
+
+    def test_max_requests_keeps_last_entries(self):
+        server = self.start([Route("/a")], max_requests=2)
+
+        for _ in range(3):
+            self.request(server.base_url + "/a")
+        payload = json.loads(self.request(server.base_url + "/__requests")[2])
+
+        self.assertEqual(payload["count"], 2)
+        self.assertEqual(payload["max"], 2)
+
+    def test_recording_can_be_disabled(self):
+        server = self.start([Route("/a")], max_requests=0)
+
+        self.request(server.base_url + "/a")
+        payload = json.loads(self.request(server.base_url + "/__requests")[2])
+
+        self.assertEqual(payload["count"], 0)
+        self.assertEqual(payload["max"], 0)
+
+    def test_recorded_body_is_truncated(self):
+        server = self.start([Route("/a", method="POST")], max_requests=5)
+
+        self.request(server.base_url + "/a", method="POST", data=b"x" * 5000)
+        entry = json.loads(self.request(server.base_url + "/__requests")[2])["requests"][0]
+
+        self.assertEqual(len(entry["body"]), 4096)
+        self.assertTrue(entry["body_truncated"])
 
     def test_head_has_length_but_no_body(self):
         server = self.start([Route("/h", method="HEAD", body="abc")])
