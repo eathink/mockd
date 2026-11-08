@@ -10,9 +10,12 @@ from urllib.parse import urlsplit
 from .config import Route
 
 _DEFAULT_HEADERS = {"Content-Type": "text/plain; charset=utf-8"}
+_MAX_BODY = 1024 * 1024  # 请求体最多读取 1 MiB 用于匹配
 
 
 def _make_handler(routes: list[Route], quiet: bool):
+    needs_body = any(route.body_contains is not None for route in routes)
+
     class Handler(BaseHTTPRequestHandler):
         # HTTP/1.0 每个响应后关闭连接，避免未读取的请求体影响下一个请求。
         protocol_version = "HTTP/1.0"
@@ -29,10 +32,30 @@ def _make_handler(routes: list[Route], quiet: bool):
             if self.command != "HEAD":
                 self.wfile.write(payload)
 
+        def _read_body(self) -> str | None:
+            """读取请求体用于匹配；超限或长度非法时返回 None。"""
+            raw_length = self.headers.get("Content-Length")
+            if raw_length is None:
+                return ""
+            try:
+                length = int(raw_length)
+            except ValueError:
+                return None
+            if length <= 0:
+                return ""
+            if length > _MAX_BODY:
+                return None
+            return self.rfile.read(length).decode("utf-8", errors="replace")
+
         def _handle(self, method: str) -> None:
             path = urlsplit(self.path).path
+            body = self._read_body() if needs_body else ""
             route = next(
-                (candidate for candidate in routes if candidate.matches(method, path)),
+                (
+                    candidate
+                    for candidate in routes
+                    if candidate.matches(method, path, body)
+                ),
                 None,
             )
             if route is None:

@@ -21,6 +21,12 @@
       "body": "{\"id\": 3}"
     },
     {
+      "method": "POST",
+      "path": "/webhook",
+      "body_contains": "\"action\": \"opened\"",
+      "body": "ignored"
+    },
+    {
       "method": "*",
       "path": "/slow",
       "delay_ms": 800,

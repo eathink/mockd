@@ -34,6 +34,18 @@ class RouteMatchTests(unittest.TestCase):
         self.assertTrue(route.matches("GET", "/api/users/1"))
         self.assertFalse(route.matches("GET", "/api/user"))
 
+    def test_body_contains(self):
+        route = Route("/hook", method="POST", body_contains="push")
+
+        self.assertTrue(route.matches("POST", "/hook", '{"event":"push"}'))
+        self.assertFalse(route.matches("POST", "/hook", '{"event":"pull"}'))
+        self.assertFalse(route.matches("POST", "/hook", None))
+
+    def test_no_body_contains_ignores_body(self):
+        route = Route("/hook", method="POST")
+
+        self.assertTrue(route.matches("POST", "/hook", "anything"))
+
 
 class LoadConfigTests(unittest.TestCase):
     def load(self, payload):
@@ -107,6 +119,21 @@ class LoadConfigTests(unittest.TestCase):
     def test_delay_must_be_non_negative(self):
         with self.assertRaises(ConfigError):
             self.load({"routes": [{"path": "/", "delay_ms": -1}]})
+
+    def test_body_contains_parsed(self):
+        routes = self.load(
+            {
+                "routes": [
+                    {"path": "/hook", "method": "POST", "body_contains": "push"}
+                ]
+            }
+        )
+
+        self.assertEqual(routes[0].body_contains, "push")
+
+    def test_body_contains_must_be_string(self):
+        with self.assertRaises(ConfigError):
+            self.load({"routes": [{"path": "/", "body_contains": 1}]})
 
     def test_routes_must_be_non_empty(self):
         with self.assertRaises(ConfigError):

@@ -9,7 +9,9 @@ from pathlib import Path
 VALID_METHODS = frozenset(
     {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "*"}
 )
-_ALLOWED_KEYS = frozenset({"method", "path", "status", "headers", "body", "delay_ms"})
+_ALLOWED_KEYS = frozenset(
+    {"method", "path", "status", "headers", "body", "delay_ms", "body_contains"}
+)
 
 
 class ConfigError(ValueError):
@@ -24,14 +26,20 @@ class Route:
     headers: dict[str, str] = field(default_factory=dict)
     body: str = ""
     delay_ms: int = 0
+    body_contains: str | None = None
 
-    def matches(self, method: str, path: str) -> bool:
-        """方法匹配（`*` 通配）且路径匹配（结尾 `*` 表示前缀）。"""
+    def matches(self, method: str, path: str, body: str | None = None) -> bool:
+        """方法匹配（`*` 通配）、路径匹配（结尾 `*` 表示前缀），可选请求体子串匹配。"""
         if self.method != "*" and self.method != method:
             return False
         if self.path.endswith("*"):
-            return path.startswith(self.path[:-1])
-        return self.path == path
+            if not path.startswith(self.path[:-1]):
+                return False
+        elif self.path != path:
+            return False
+        if self.body_contains is not None:
+            return body is not None and self.body_contains in body
+        return True
 
 
 def _parse_route(item: object, index: int, source: str) -> Route:
@@ -74,7 +82,13 @@ def _parse_route(item: object, index: int, source: str) -> Route:
     if isinstance(delay_ms, bool) or not isinstance(delay_ms, int) or delay_ms < 0:
         raise ConfigError(f"{where}: delay_ms 必须是非负整数")
 
-    return Route(path, method, status, dict(headers), body, delay_ms)
+    body_contains = item.get("body_contains")
+    if body_contains is not None and not isinstance(body_contains, str):
+        raise ConfigError(f"{where}: body_contains 必须是字符串")
+
+    return Route(
+        path, method, status, dict(headers), body, delay_ms, body_contains
+    )
 
 
 def load_config(path: str | Path) -> list[Route]:

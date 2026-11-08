@@ -70,6 +70,7 @@ Content-Length: 9
 | `status` | 否 | `200` | 100–599 的整数 |
 | `headers` | 否 | `text/plain; charset=utf-8` | 字符串到字符串的对象 |
 | `body` | 否 | 空 | 响应体字符串 |
+| `body_contains` | 否 | — | 请求体包含该子串才匹配，用于同路径按 payload 分流 |
 | `delay_ms` | 否 | `0` | 响应前延迟的毫秒数，用于模拟慢接口 |
 
 校验是严格的：未知字段、非法方法、越界状态码都会直接报错并指出 `routes[i]`，避免拼写错误静默生效。
@@ -78,6 +79,7 @@ Content-Length: 9
 
 - **按声明顺序匹配，第一条生效**——把更具体的路由放在前面
 - **查询串不参与匹配**：`/api/users?page=2` 命中 `/api/users`
+- **可选请求体匹配**：配置了 `body_contains` 的路由才会读取请求体，最多读 1 MiB；未配置的路由不读请求体
 - 未匹配返回 `404` 和 JSON 错误体，包含请求方法与路径
 - 每条请求打印一行日志；`--quiet` 关闭
 - 自动设置 `Content-Length`，HEAD 请求只回头不返体
@@ -109,6 +111,13 @@ mockd examples/mockd.json
 ```json
 { "method": "GET", "path": "/api/slow", "delay_ms": 3000, "body": "timeout" },
 { "method": "*", "path": "/api/error", "status": 503, "body": "unavailable" }
+```
+
+**同路径按 payload 分流**——用 `body_contains` 区分不同事件：
+
+```json
+{ "method": "POST", "path": "/webhook", "body_contains": "\"action\": \"opened\"", "body": "ignored" },
+{ "method": "POST", "path": "/webhook", "body_contains": "\"action\": \"closed\"", "status": 204, "body": "" }
 ```
 
 **集成测试**——测试里起进程，用随机端口：

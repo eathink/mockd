@@ -21,8 +21,8 @@ class ServerTests(unittest.TestCase):
         server.stop()
         thread.join(timeout=5)
 
-    def request(self, url, method="GET"):
-        request = urllib.request.Request(url, method=method)
+    def request(self, url, method="GET", data=None):
+        request = urllib.request.Request(url, data=data, method=method)
         try:
             with urllib.request.urlopen(request, timeout=5) as response:
                 return response.status, dict(response.headers), response.read().decode()
@@ -89,6 +89,45 @@ class ServerTests(unittest.TestCase):
 
         self.assertEqual(status, 200)
         self.assertGreaterEqual(elapsed, 0.07)
+
+    def test_body_contains_routes_by_payload(self):
+        server = self.start(
+            [
+                Route(
+                    "/hook",
+                    method="POST",
+                    body_contains='"event":"push"',
+                    body="push",
+                ),
+                Route(
+                    "/hook",
+                    method="POST",
+                    body_contains='"event":"pull"',
+                    body="pull",
+                ),
+            ]
+        )
+
+        _, _, push_body = self.request(
+            server.base_url + "/hook", method="POST", data=b'{"event":"push"}'
+        )
+        _, _, pull_body = self.request(
+            server.base_url + "/hook", method="POST", data=b'{"event":"pull"}'
+        )
+
+        self.assertEqual(push_body, "push")
+        self.assertEqual(pull_body, "pull")
+
+    def test_body_not_matching_returns_404(self):
+        server = self.start(
+            [Route("/hook", method="POST", body_contains="push", body="ok")]
+        )
+
+        status, _, _ = self.request(
+            server.base_url + "/hook", method="POST", data=b'{"event":"other"}'
+        )
+
+        self.assertEqual(status, 404)
 
     def test_head_has_length_but_no_body(self):
         server = self.start([Route("/h", method="HEAD", body="abc")])
