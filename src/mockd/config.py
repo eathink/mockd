@@ -42,8 +42,7 @@ class Route:
         return True
 
 
-def _parse_route(item: object, index: int, source: str) -> Route:
-    where = f"{source}: routes[{index}]"
+def _parse_route(item: object, where: str) -> Route:
     if not isinstance(item, dict):
         raise ConfigError(f"{where}: 必须是对象")
 
@@ -110,4 +109,9 @@ def load_config(path: str | Path) -> list[Route]:
     if not isinstance(routes, list) or not routes:
         raise ConfigError(f"{p}: routes 必须是非空数组")
 
-    return [_parse_route(item, index, str(p)) for index, item in enumerate(routes)]
+    return [_parse_route(item, f"{p}: routes[{index}]") for index, item in enumerate(routes)]
+
+
+def parse_route(item: object, source: str = "<route>") -> Route:
+    """校验单个路由对象；命令行 --route 等内联配置复用同一套规则。"""
+    return _parse_route(item, source)

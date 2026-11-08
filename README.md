@@ -88,7 +88,7 @@ Content-Length: 9
 ## 命令行
 
 ```bash
-mockd CONFIG [--host 127.0.0.1] [--port 8080] [--quiet]
+mockd CONFIG [--host 127.0.0.1] [--port 8080] [--max-requests N] [--route JSON ...] [--quiet]
 ```
 
 | 选项 | 说明 |
@@ -96,8 +96,20 @@ mockd CONFIG [--host 127.0.0.1] [--port 8080] [--quiet]
 | `--host` | 监听地址，默认 `127.0.0.1` |
 | `--port` | 监听端口，默认 `8080`；`0` 表示随机端口并打印实际地址 |
 | `--max-requests N` | 保留最近 N 条请求供 `/__requests` 查看，默认 `50`；`0` 关闭记录 |
+| `--route JSON` | 临时追加路由（可重复），优先于配置文件 |
 | `--quiet` | 不打印每条请求 |
 | `--version` | 版本号 |
+
+## 临时路由
+
+不想改配置文件时，用 `--route` 直接追加一个 JSON 路由，可重复。它们排在配置文件路由**之前**，因此可以覆盖同名路由：
+
+```bash
+mockd examples/mockd.json --route '{"path":"/debug","body":"hello"}'
+mockd examples/mockd.json --route '{"method":"GET","path":"/health","status":503,"body":"down"}'
+```
+
+字段与配置文件完全一致（`path` 必填，其余可选），校验规则也相同；进程退出即失效。
 
 ## 调试：查看最近请求
 

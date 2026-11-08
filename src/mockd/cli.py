@@ -3,11 +3,26 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 
 from . import __version__
-from .config import ConfigError, load_config
+from .config import ConfigError, Route, load_config, parse_route
 from .server import MockServer
+
+
+def parse_cli_routes(specs: list[str]) -> list[Route]:
+    """把 --route 的 JSON 字符串解析成路由，报错时指出序号。"""
+    routes: list[Route] = []
+    for index, spec in enumerate(specs, 1):
+        try:
+            data = json.loads(spec)
+        except json.JSONDecodeError as exc:
+            raise ConfigError(
+                f"--route #{index}: JSON 解析失败：{exc.msg}"
+            ) from exc
+        routes.append(parse_route(data, f"--route #{index}"))
+    return routes
 
 
 def _non_negative_int(raw: str) -> int:
@@ -37,6 +52,13 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help="保留最近 N 条请求供 /__requests 查看（默认 50，0 表示关闭）",
     )
+    parser.add_argument(
+        "--route",
+        action="append",
+        default=[],
+        metavar="JSON",
+        help='临时追加路由（JSON 对象，可重复）；优先于配置文件，例如 \'{"path":"/debug","body":"ok"}\'',
+    )
     parser.add_argument("--quiet", action="store_true", help="不打印每条请求")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     return parser
@@ -46,7 +68,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
     try:
-        routes = load_config(args.config)
+        routes = parse_cli_routes(args.route) + load_config(args.config)
     except ConfigError as exc:
         print(f"mockd: {exc}", file=sys.stderr)
         return 2
